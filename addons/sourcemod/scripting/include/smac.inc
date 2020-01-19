@@ -2,7 +2,7 @@
     SourceMod Anti-Cheat
     Copyright (C) 2011-2016 SMAC Development Team
     Copyright (C) 2007-2011 CodingDirect LLC
-	
+    
     This program is free software: you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation, either version 3 of the License, or
@@ -25,27 +25,28 @@
 #include <smac_stocks>
 
 /* Globals */
-#define SMAC_VERSION	"0.8.6.5"
-#define SMAC_URL		"https://github.com/Silenci0/SMAC"
-#define SMAC_AUTHOR		"SMAC Development Team (original), Mr. Silence (updated)"
-#define SMAC_MOD_ERROR	"This module will not work for this mod and should be removed."
+#define SMAC_VERSION    "0.8.7.3"
+#define SMAC_URL        "https://github.com/Silenci0/SMAC"
+#define SMAC_AUTHOR     "SMAC Development Team"
+#define SMAC_MOD_ERROR  "This module will not work for this mod and should be removed."
 
 enum GameType {
     Game_Unknown = 0,
     Game_CSS,
     Game_TF2,
     Game_DODS,
-    Game_INSMOD,
+    Game_INS,
     Game_L4D,
     Game_L4D2,
     Game_HL2DM,
     Game_FOF,
-    Game_GMOD,
     Game_HL2CTF,
     Game_HIDDEN,
     Game_ND,
     Game_CSGO,
     Game_ZPS,
+    Game_ZMR,
+    Game_BM
 };
 
 enum DetectionType {
@@ -90,19 +91,19 @@ enum DetectionType {
 };
 
 /* Natives */
-native GameType:SMAC_GetGameType();
-native SMAC_Log(const String:format[], any:...);
-native SMAC_LogAction(client, const String:format[], any:...);
-native SMAC_Ban(client, const String:reason[], any:...);
-native SMAC_PrintAdminNotice(const String:format[], any:...);
-native Handle:SMAC_CreateConVar(const String:name[], const String:defaultValue[], const String:description[]="", flags=0, bool:hasMin=false, Float:min=0.0, bool:hasMax=false, Float:max=0.0);
-native Action:SMAC_CheatDetected(client, DetectionType:type = Detection_Unknown, Handle:info = INVALID_HANDLE);
+native GameType SMAC_GetGameType();
+native void SMAC_Log(const char[] format, any ...);
+native void SMAC_LogAction(int client, const char[] format, any ...);
+native void SMAC_Ban(int client, const char[] reason, any ...);
+native void SMAC_PrintAdminNotice(const char[] format, any ...);
+native ConVar SMAC_CreateConVar(const char[] name, const char[] defaultValue, const char[] description="",int flags = 0, bool hasMin = false, float min = 0.0, bool hasMax = false, float max = 0.0);
+native Action SMAC_CheatDetected(int client, DetectionType type = Detection_Unknown, Handle info = INVALID_HANDLE);
 
 /* Forwards */
-forward Action:SMAC_OnCheatDetected(client, const String:module[], DetectionType:type, Handle:info);
+forward Action SMAC_OnCheatDetected(int client, const char[] module, DetectionType type, Handle info);
 
 
-public SharedPlugin:__pl_smac = 
+public SharedPlugin __pl_smac =
 {
     name = "smac",
     file = "smac.smx",

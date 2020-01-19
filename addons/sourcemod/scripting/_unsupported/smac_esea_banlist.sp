@@ -17,6 +17,7 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 #pragma semicolon 1
+#pragma newdecls required
 
 /* SM Includes */
 #include <sourcemod>
@@ -24,7 +25,7 @@
 #include <smac>
 
 /* Plugin Info */
-public Plugin:myinfo =
+public Plugin myinfo =
 {
     name = "SMAC ESEA Global Banlist",
     author = SMAC_AUTHOR,
@@ -37,11 +38,11 @@ public Plugin:myinfo =
 #define ESEA_HOSTNAME	"play.esea.net"
 #define ESEA_QUERY		"index.php?s=support&d=ban_list&type=1&format=csv"
 
-new Handle:g_hCvarKick = INVALID_HANDLE;
-new Handle:g_hBanlist = INVALID_HANDLE;
+ConVar g_hCvarKick;
+Handle g_hBanlist = INVALID_HANDLE;
 
 /* Plugin Functions */
-public OnPluginStart()
+public void OnPluginStart()
 {
     LoadTranslations("smac.phrases");
 
@@ -54,16 +55,18 @@ public OnPluginStart()
     ESEA_DownloadBanlist();
 }
 
-public OnClientAuthorized(client, const String:auth[])
+public void OnClientAuthorized(int client, const char[] auth)
 {
     if (IsFakeClient(client))
+    {
         return;
+    }
 
     // Workaround for universe digit change on L4D+ engines.
-    decl String:sAuthID[MAX_AUTHID_LENGTH];
+    char sAuthID[MAX_AUTHID_LENGTH];
     FormatEx(sAuthID, sizeof(sAuthID), "STEAM_0:%s", auth[8]);
 
-    decl bool:bShouldLog;
+    bool bShouldLog;
 
     if (GetTrieValue(g_hBanlist, sAuthID, bShouldLog) && SMAC_CheatDetected(client, Detection_GlobalBanned_ESEA, INVALID_HANDLE) == Plugin_Continue)
     {
@@ -89,31 +92,33 @@ public OnClientAuthorized(client, const String:auth[])
     }
 }
 
-ESEA_DownloadBanlist()
+void ESEA_DownloadBanlist()
 {
     // Begin downloading the banlist in memory.
-    new Handle:socket = SocketCreate(SOCKET_TCP, OnSocketError);
+    Handle socket = SocketCreate(SOCKET_TCP, OnSocketError);
     SocketSetOption(socket, ConcatenateCallbacks, 8192);
     SocketConnect(socket, OnSocketConnected, OnSocketReceive, OnSocketDisconnected, ESEA_HOSTNAME, 80);
 }
 
-ESEA_ParseBan(String:baninfo[])
+void ESEA_ParseBan(char[] baninfo)
 {
     if (baninfo[0] != '"')
+    {
         return;
-
+    }
+    
     // Parse one line of the CSV banlist.
-    decl String:sAuthID[MAX_AUTHID_LENGTH];
+    char sAuthID[MAX_AUTHID_LENGTH];
 
-    new length = FindCharInString(baninfo[3], '"') + 9;
+    int length = FindCharInString(baninfo[3], '"') + 9;
     FormatEx(sAuthID, length, "STEAM_0:%s", baninfo[3]);
 
     SetTrieValue(g_hBanlist, sAuthID, 1);
 }
 
-public OnSocketConnected(Handle:socket, any:arg)
+public void OnSocketConnected(Handle socket, any arg)
 {
-    decl String:sRequest[256];
+    char sRequest[256];
 
     FormatEx(sRequest,
         sizeof(sRequest),
@@ -124,25 +129,30 @@ public OnSocketConnected(Handle:socket, any:arg)
     SocketSend(socket, sRequest);
 }
 
-public OnSocketReceive(Handle:socket, String:data[], const size, any:arg)
+public void OnSocketReceive(Handle socket, char[] data, const int size, any arg)
 {
     // Parse raw data as it's received.
-    static bool:bParsedHeader, bool:bSplitData, String:sBuffer[256];
-    new idx, length;
+    static bool bParsedHeader, bSplitData;
+    char sBuffer[256];
+    int idx, length;
 
     if (!bParsedHeader)
     {
         // Parse and skip header data.
         if ((idx = StrContains(data, "\r\n\r\n")) == -1)
+        {
             return;
-
+        }
+        
         idx += 4;
 
         // Skip the first line as well (column names).
-        new offset = FindCharInString(data[idx], '\n');
+        int offset = FindCharInString(data[idx], '\n');
 
         if (offset == -1)
+        {
             return;
+        }
 
         idx += offset + 1;
         bParsedHeader = true;
@@ -154,10 +164,12 @@ public OnSocketReceive(Handle:socket, String:data[], const size, any:arg)
         length = FindCharInString(data[idx], '\n');
 
         if (length == -1)
+        {
             return;
+        }
 
         length += 1;
-        new maxsize = strlen(sBuffer) + length;
+        int maxsize = strlen(sBuffer) + length;
 
         if (maxsize <= sizeof(sBuffer))
         {
@@ -168,7 +180,7 @@ public OnSocketReceive(Handle:socket, String:data[], const size, any:arg)
         idx += length;
         bSplitData = false;
     }
-	
+
     // Parse incoming data.
     while (idx < size)
     {
@@ -193,14 +205,14 @@ public OnSocketReceive(Handle:socket, String:data[], const size, any:arg)
     }
 }
 
-public OnSocketDisconnected(Handle:socket, any:arg)
+public void OnSocketDisconnected(Handle socket, any arg)
 {
     CloseHandle(socket);
 
     // Check all players against the new list.
-    decl String:sAuthID[MAX_AUTHID_LENGTH];
+    char sAuthID[MAX_AUTHID_LENGTH];
 
-    for (new i = 1; i <= MaxClients; i++)
+    for (int i = 1; i <= MaxClients; i++)
     {
         if (IsClientAuthorized(i) && GetClientAuthId(i, AuthId_Steam2, sAuthID, sizeof(sAuthID), false))
         {
@@ -209,7 +221,7 @@ public OnSocketDisconnected(Handle:socket, any:arg)
     }
 }
 
-public OnSocketError(Handle:socket, const errorType, const errorNum, any:arg)
+public void OnSocketError(Handle socket, const int errorType, const int errorNum, any arg)
 {
     CloseHandle(socket);
 }

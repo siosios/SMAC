@@ -17,6 +17,7 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 #pragma semicolon 1
+#pragma newdecls required
 
 //--------------------------- NOTICE: README -----------------------------//
 // As of latest 0.8.6.0 version of SMAC, CS:GO is no longer supported due 
@@ -33,50 +34,50 @@
 #include <smac>
 
 /* Plugin Info */
-public Plugin:myinfo =
+public Plugin myinfo =
 {
-    name = "SMAC Anti-Wallhack",
-    author = SMAC_AUTHOR,
-    description = "Prevents wallhack cheats from working",
-    version = SMAC_VERSION,
-    url = SMAC_URL
+    name =          "SMAC Anti-Wallhack",
+    author =        SMAC_AUTHOR,
+    description =   "Prevents wallhack cheats from working",
+    version =       SMAC_VERSION,
+    url =           SMAC_URL
 };
 
 /* Globals */
 //#define SND_UNKNOWN_CSGO_FLAG1	(1 << 10)
 //#define SND_UNKNOWN_CSGO_FLAG2	(1 << 11)
 
-new GameType:g_Game = Game_Unknown;
+GameType g_Game = Game_Unknown;
 
-new bool:g_bEnabled, bool:g_bFarEspEnabled;
-new g_iMaxTraces;
+bool g_bEnabled, g_bFarEspEnabled;
+int g_iMaxTraces;
 
-new g_iDownloadTable = INVALID_STRING_TABLE;
-new Handle:g_hIgnoreSounds = INVALID_HANDLE;
+int g_iDownloadTable = INVALID_STRING_TABLE;
+Handle g_hIgnoreSounds = INVALID_HANDLE;
 
-new g_iPVSCache[MAXPLAYERS+1][MAXPLAYERS+1];
-new g_iPVSSoundCache[MAXPLAYERS+1][MAXPLAYERS+1];
-new bool:g_bIsVisible[MAXPLAYERS+1][MAXPLAYERS+1];
-new bool:g_bIsObserver[MAXPLAYERS+1];
-new bool:g_bIsFake[MAXPLAYERS+1];
-new bool:g_bProcess[MAXPLAYERS+1];
-new bool:g_bIgnore[MAXPLAYERS+1];
-new bool:g_bForceIgnore[MAXPLAYERS+1];
+int g_iPVSCache[MAXPLAYERS+1][MAXPLAYERS+1];
+int g_iPVSSoundCache[MAXPLAYERS+1][MAXPLAYERS+1];
+bool g_bIsVisible[MAXPLAYERS+1][MAXPLAYERS+1];
+bool g_bIsObserver[MAXPLAYERS+1];
+bool g_bIsFake[MAXPLAYERS+1];
+bool g_bProcess[MAXPLAYERS+1];
+bool g_bIgnore[MAXPLAYERS+1];
+bool g_bForceIgnore[MAXPLAYERS+1];
 
-new g_iWeaponOwner[MAX_EDICTS];
-new g_iTeam[MAXPLAYERS+1];
-new Float:g_vMins[MAXPLAYERS+1][3];
-new Float:g_vMaxs[MAXPLAYERS+1][3];
-new Float:g_vAbsCentre[MAXPLAYERS+1][3];
-new Float:g_vEyePos[MAXPLAYERS+1][3];
-new Float:g_vEyeAngles[MAXPLAYERS+1][3];
+int g_iWeaponOwner[MAX_EDICTS];
+int g_iTeam[MAXPLAYERS+1];
+float g_vMins[MAXPLAYERS+1][3];
+float g_vMaxs[MAXPLAYERS+1][3];
+float g_vAbsCentre[MAXPLAYERS+1][3];
+float g_vEyePos[MAXPLAYERS+1][3];
+float g_vEyeAngles[MAXPLAYERS+1][3];
 
-new g_iTotalThreads = 1, g_iCurrentThread = 1, g_iThread[MAXPLAYERS+1] = { 1, ... };
-new g_iCacheTicks, g_iTraceCount;
-new g_iTickCount, g_iCmdTickCount[MAXPLAYERS+1], g_iTickRate;
+int g_iTotalThreads = 1, g_iCurrentThread = 1, g_iThread[MAXPLAYERS+1] = { 1, ... };
+int g_iCacheTicks, g_iTraceCount;
+int g_iTickCount, g_iCmdTickCount[MAXPLAYERS+1], g_iTickRate;
 
 /* Plugin Functions */
-public APLRes:AskPluginLoad2(Handle:myself, bool:late, String:error[], err_max)
+public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max)
 {
     if (GetEngineVersion() == Engine_CSGO)
     {
@@ -92,10 +93,10 @@ public APLRes:AskPluginLoad2(Handle:myself, bool:late, String:error[], err_max)
     return APLRes_Success;
 }
 
-public OnPluginStart()
+public void OnPluginStart()
 {
     // Convars.
-    new Handle:hCvar = INVALID_HANDLE;
+    ConVar hCvar = null;
 
     hCvar = SMAC_CreateConVar("smac_wallhack", "1", "Enable Anti-Wallhack. This will increase your server's CPU usage.", 0, true, 0.0, true, 1.0);
     OnSettingsChanged(hCvar, "", "");
@@ -109,14 +110,22 @@ public OnPluginStart()
     g_iTickRate = RoundToFloor(1.0 / GetTickInterval());
 
     if ((hCvar = FindConVar("sv_minupdaterate")) != INVALID_HANDLE && IsConVarDefault(hCvar))
+    {
         SetConVarInt(hCvar, g_iTickRate);
+    }
     if ((hCvar = FindConVar("sv_maxupdaterate")) != INVALID_HANDLE && IsConVarDefault(hCvar))
+    {
         SetConVarInt(hCvar, g_iTickRate);
+    }
     if ((hCvar = FindConVar("sv_client_min_interp_ratio")) != INVALID_HANDLE && IsConVarDefault(hCvar))
+    {
         SetConVarInt(hCvar, 0);
+    }
     if ((hCvar = FindConVar("sv_client_max_interp_ratio")) != INVALID_HANDLE && IsConVarDefault(hCvar))
+    {
         SetConVarInt(hCvar, 1);
-	
+	}
+    
     // Initialize.
     g_Game = SMAC_GetGameType();
     g_iDownloadTable = FindStringTable("downloadables");
@@ -124,9 +133,9 @@ public OnPluginStart()
 
     RequireFeature(FeatureType_Capability, FEATURECAP_PLAYERRUNCMD_11PARAMS, "This module requires a newer version of SourceMod.");
 
-    for (new i = 0; i < sizeof(g_bIsVisible); i++)
+    for (int i = 0; i < sizeof(g_bIsVisible); i++)
     {
-        for (new j = 0; j < sizeof(g_bIsVisible[]); j++)
+        for (int j = 0; j < sizeof(g_bIsVisible[]); j++)
         {
             g_bIsVisible[i][j] = true;
         }
@@ -147,23 +156,23 @@ public OnPluginStart()
 }
 
 // native SMAC_WH_SetClientIgnore(client, bool:bIgnore);
-public Native_SetClientIgnore(Handle:plugin, numParams)
+public any Native_SetClientIgnore(Handle plugin,int numParams)
 {
-    new client = GetNativeCell(1);
+    int client = GetNativeCell(1);
 
     if (!IS_CLIENT(client) || !IsClientInGame(client))
     {
         ThrowNativeError(SP_ERROR_INDEX, "Client index %i is invalid", client);
     }
 
-    g_bForceIgnore[client] = bool:GetNativeCell(2);
+    g_bForceIgnore[client] = view_as<bool>(GetNativeCell(2));
     Wallhack_UpdateClientCache(client);
 }
 
 // native bool:SMAC_WH_GetClientIgnore(client);
-public Native_GetClientIgnore(Handle:plugin, numParams)
+public any Native_GetClientIgnore(Handle plugin,int numParams)
 {
-    new client = GetNativeCell(1);
+    int client = GetNativeCell(1);
 
     if (!IS_CLIENT(client) || !IsClientConnected(client))
     {
@@ -173,16 +182,18 @@ public Native_GetClientIgnore(Handle:plugin, numParams)
     return g_bIgnore[client];
 }
 
-public OnConfigsExecuted()
+public void OnConfigsExecuted()
 {
     // Ignore all sounds in the download table.
     if (g_iDownloadTable == INVALID_STRING_TABLE)
+    {
         return;
+    }
+    
+    char sBuffer[PLATFORM_MAX_PATH];
+    int iMaxStrings = GetStringTableNumStrings(g_iDownloadTable);
 
-    decl String:sBuffer[PLATFORM_MAX_PATH];
-    new iMaxStrings = GetStringTableNumStrings(g_iDownloadTable);
-
-    for (new i = 0; i < iMaxStrings; i++)
+    for (int i = 0; i < iMaxStrings; i++)
     {
         ReadStringTable(g_iDownloadTable, i, sBuffer, sizeof(sBuffer));
 
@@ -193,7 +204,7 @@ public OnConfigsExecuted()
     }
 }
 
-public OnClientPutInServer(client)
+public void OnClientPutInServer(int client)
 {
     if (g_bEnabled)
     {
@@ -202,7 +213,7 @@ public OnClientPutInServer(client)
     }
 }
 
-public OnClientDisconnect(client)
+public void OnClientDisconnect(int client)
 {
     // Stop checking clients right before they disconnect.
     g_bIsObserver[client] = false;
@@ -211,10 +222,10 @@ public OnClientDisconnect(client)
     g_bForceIgnore[client] = false;
 }
 
-public OnClientDisconnect_Post(client)
+public void OnClientDisconnect_Post(int client)
 {
     // Clear cache on post to ensure it's not updated again.
-    for (new i = 0; i < sizeof(g_iPVSCache); i++)
+    for (int i = 0; i < sizeof(g_iPVSCache); i++)
     {
         g_iPVSCache[i][client] = 0;
         g_iPVSSoundCache[i][client] = 0;
@@ -222,15 +233,15 @@ public OnClientDisconnect_Post(client)
     }
 }
 
-public Event_PlayerStateChanged(Handle:event, const String:name[], bool:dontBroadcast)
+public Action Event_PlayerStateChanged(Event event, const char[] name, bool dontBroadcast)
 {
     // Not all data has been updated at this time. Wait until the next tick to update cache.
-    CreateTimer(0.001, Timer_PlayerStateChanged, GetEventInt(event, "userid"), TIMER_FLAG_NO_MAPCHANGE);
+    CreateTimer(0.001, Timer_PlayerStateChanged, event.GetInt("userid"), TIMER_FLAG_NO_MAPCHANGE);
 }
 
-public Action:Timer_PlayerStateChanged(Handle:timer, any:userid)
+public Action Timer_PlayerStateChanged(Handle timer, any userid)
 {
-    new client = GetClientOfUserId(userid);
+    int client = GetClientOfUserId(userid);
 
     if (IS_CLIENT(client) && IsClientInGame(client))
     {
@@ -240,7 +251,7 @@ public Action:Timer_PlayerStateChanged(Handle:timer, any:userid)
     return Plugin_Stop;
 }
 
-Wallhack_UpdateClientCache(client)
+void Wallhack_UpdateClientCache(int client)
 {
     g_iTeam[client] = GetClientTeam(client);
     g_bIsObserver[client] = IsClientObserver(client);
@@ -251,9 +262,9 @@ Wallhack_UpdateClientCache(client)
     g_bIgnore[client] = g_bForceIgnore[client] || g_bIsFake[client] || ((g_Game == Game_L4D || g_Game == Game_L4D2 || g_Game == Game_HIDDEN) && g_iTeam[client] != 2);
 }
 
-public OnSettingsChanged(Handle:convar, const String:oldValue[], const String:newValue[])
+public void OnSettingsChanged(ConVar convar, char[] oldValue, char[] newValue)
 {
-    new bool:bNewValue = GetConVarBool(convar);
+    bool bNewValue = convar.BoolValue;
 
     if (bNewValue && !g_bEnabled)
     {
@@ -265,12 +276,12 @@ public OnSettingsChanged(Handle:convar, const String:oldValue[], const String:ne
     }
 }
 
-public OnMaxTracesChanged(Handle:convar, const String:oldValue[], const String:newValue[])
+public void OnMaxTracesChanged(ConVar convar, char[] oldValue, char[] newValue)
 {
     g_iMaxTraces = GetConVarInt(convar);
 }
 
-Wallhack_Enable()
+void Wallhack_Enable()
 {
     g_bEnabled = true;
 
@@ -300,7 +311,7 @@ Wallhack_Enable()
         }
     }
 
-    for (new i = 1; i <= MaxClients; i++)
+    for (int i = 1; i <= MaxClients; i++)
     {
         if (IsClientInGame(i))
         {
@@ -309,12 +320,12 @@ Wallhack_Enable()
         }
     }
     
-    new maxEdicts = GetEntityCount();
-    for (new i = MaxClients + 1; i < maxEdicts; i++)
+    int maxEdicts = GetEntityCount();
+    for (int i = MaxClients + 1; i < maxEdicts; i++)
     {
         if (IsValidEdict(i))
         {
-            new owner = GetEntPropEnt(i, Prop_Data, "m_hOwnerEntity");
+            int owner = GetEntPropEnt(i, Prop_Data, "m_hOwnerEntity");
 
             if (IS_CLIENT(owner))
             {
@@ -325,7 +336,7 @@ Wallhack_Enable()
     }
 }
 
-Wallhack_Disable()
+void Wallhack_Disable()
 {
     g_bEnabled = false;
 
@@ -355,7 +366,7 @@ Wallhack_Disable()
         }
     }
 
-    for (new i = 1; i <= MaxClients; i++)
+    for (int i = 1; i <= MaxClients; i++)
     {
         if (IsClientInGame(i))
         {
@@ -363,8 +374,8 @@ Wallhack_Disable()
         }
     }
 
-    new maxEdicts = GetEntityCount();
-    for (new i = MaxClients + 1; i < maxEdicts; i++)
+    int maxEdicts = GetEntityCount();
+    for (int i = MaxClients + 1; i < maxEdicts; i++)
     {
         if (g_iWeaponOwner[i])
         {
@@ -377,21 +388,21 @@ Wallhack_Disable()
 /**
  * Hooks
  */
-Wallhack_Hook(client)
+void Wallhack_Hook(int client)
 {
     SDKHook(client, SDKHook_SetTransmit, Hook_SetTransmit);
     SDKHook(client, SDKHook_WeaponEquipPost, Hook_WeaponEquipPost);
     SDKHook(client, SDKHook_WeaponDropPost, Hook_WeaponDropPost);
 }
 
-Wallhack_Unhook(client)
+void Wallhack_Unhook(int client)
 {
     SDKUnhook(client, SDKHook_SetTransmit, Hook_SetTransmit);
     SDKUnhook(client, SDKHook_WeaponEquipPost, Hook_WeaponEquipPost);
     SDKUnhook(client, SDKHook_WeaponDropPost, Hook_WeaponDropPost);
 }
 
-public OnEntityCreated(entity, const String:classname[])
+public void OnEntityCreated(int entity, const char[] classname)
 {
     if (entity > MaxClients && entity < MAX_EDICTS)
     {
@@ -399,7 +410,7 @@ public OnEntityCreated(entity, const String:classname[])
     }
 }
 
-public OnEntityDestroyed(entity)
+public void OnEntityDestroyed(int entity)
 {
     if (entity > MaxClients && entity < MAX_EDICTS)
     {
@@ -407,7 +418,7 @@ public OnEntityDestroyed(entity)
     }
 }
 
-public Hook_WeaponEquipPost(client, weapon)
+public void Hook_WeaponEquipPost(int client, int weapon)
 {
     if (weapon > MaxClients && weapon < MAX_EDICTS)
     {
@@ -416,7 +427,7 @@ public Hook_WeaponEquipPost(client, weapon)
     }
 }
 
-public Hook_WeaponDropPost(client, weapon)
+public void Hook_WeaponDropPost(int client, int weapon)
 {
     if (weapon > MaxClients && weapon < MAX_EDICTS)
     {
@@ -425,41 +436,51 @@ public Hook_WeaponDropPost(client, weapon)
     }
 }
 
-public Action:Hook_NormalSound(clients[64], &numClients, String:sample[PLATFORM_MAX_PATH], &entity, &channel, &Float:volume, &level, &pitch, &flags)
+public Action Hook_NormalSound(int clients[MAXPLAYERS], int& numClients, char sample[PLATFORM_MAX_PATH], 
+                            int& entity, int& channel, float& volume, int& level, int& pitch, int& flags, 
+                            char soundEntry[PLATFORM_MAX_PATH], int& seed)
 {
     /* Emit sounds to clients who aren't being transmitted the entity. */
-    decl dummy;
+    int dummy;
 
     if (!entity || !IsValidEdict(entity) || GetTrieValue(g_hIgnoreSounds, sample, dummy))
+    {
         return Plugin_Continue;
-
-    new iOwner = (entity > MaxClients) ? g_iWeaponOwner[entity] : entity;
-	
+    }
+    
+    int iOwner = (entity > MaxClients) ? g_iWeaponOwner[entity] : entity;
+    
     if (!IS_CLIENT(iOwner))
+    {
         return Plugin_Continue;
-
+    }
+    
     //// CSGO added new sound flags that aren't compatible with this module.
     //if (g_Game == Game_CSGO)
     //{
     //    // Seems to only be used by voice commands.
     //    if (flags & SND_UNKNOWN_CSGO_FLAG2)
-    //        return Plugin_Continue;
-
+    //    {
+    //        return Plugin_Continue;   
+    //    }
     //    flags &= ~SND_UNKNOWN_CSGO_FLAG1;
     //}
 
-    decl newClients[MaxClients];
-    new bool:bAddClient[MaxClients+1], newTotal;
-
+    int[] newClients = new int[MaxClients];
+    bool[] bAddClient = new bool[view_as<int>(MaxClients+1)];
+    int newTotal;
+    
     // Check clients that get the sound by default.
-    for (new i = 0; i < numClients; i++)
+    for (int i = 0; i < numClients; i++)
     {
-        new client = clients[i];
+        int client = clients[i];
 
         // SourceMod and game engine don't always agree.
         if (!IsClientInGame(client))
+        {
             continue;
-
+        }
+        
         // These clients need the entity information for prediction.
         if (g_bIsFake[client] || client == iOwner)
         {
@@ -470,9 +491,13 @@ public Action:Hook_NormalSound(clients[64], &numClients, String:sample[PLATFORM_
         // Body sounds (footsteps, jumping, etc) will be kept strict to the PVS because they're quiet anyway.
         // Weapons can be heard from larger distances.
         if (channel == SNDCHAN_BODY)
+        {
             bAddClient[client] = g_bIsVisible[iOwner][client];
+        }
         else
+        {
             bAddClient[client] = true;
+        }
     }
 
     // Emit with entity information.
@@ -483,7 +508,7 @@ public Action:Hook_NormalSound(clients[64], &numClients, String:sample[PLATFORM_
     }
 
     // Determine which clients still need this sound.
-    for (new i = 1; i <= MaxClients; i++)
+    for (int i = 1; i <= MaxClients; i++)
     {
         // A client in the PVS will be expected to predict the sound even if we're blocking transmit.
         if (bAddClient[i] || ((g_bProcess[i] || g_bIsObserver[i]) && !g_bIsVisible[iOwner][i] && g_iPVSSoundCache[iOwner][i] > g_iTickCount))
@@ -495,7 +520,7 @@ public Action:Hook_NormalSound(clients[64], &numClients, String:sample[PLATFORM_
     // Emit without entity information.
     if (newTotal)
     {
-        decl Float:vOrigin[3];
+        float vOrigin[3];
         GetEntPropVector(entity, Prop_Data, "m_vecAbsOrigin", vOrigin);
         EmitSound(newClients, newTotal, sample, SOUND_FROM_WORLD, channel, level, flags, volume, pitch, _, vOrigin);
     }
@@ -503,7 +528,7 @@ public Action:Hook_NormalSound(clients[64], &numClients, String:sample[PLATFORM_
     return Plugin_Stop;
 }
 
-public TF2_Hook_FlagEquip(const String:output[], caller, activator, Float:delay)
+public void TF2_Hook_FlagEquip(const char[] output, int caller, int activator, float delay)
 {
     if (caller > MaxClients && caller < MAX_EDICTS && IS_CLIENT(activator) && IsClientConnected(activator))
     {
@@ -512,7 +537,7 @@ public TF2_Hook_FlagEquip(const String:output[], caller, activator, Float:delay)
     }
 }
 
-public TF2_Hook_FlagDrop(const String:output[], caller, activator, Float:delay)
+public void TF2_Hook_FlagDrop(const char[] output, int caller, int activator, float delay)
 {
     if (caller > MaxClients && caller < MAX_EDICTS)
     {
@@ -521,14 +546,14 @@ public TF2_Hook_FlagDrop(const String:output[], caller, activator, Float:delay)
     }
 }
 
-public TF2_Event_Inventory(Handle:event, const String:name[], bool:dontBroadcast)
+public Action TF2_Event_Inventory(Event event, const char[] name, bool dontBroadcast)
 {
-    new client = GetClientOfUserId(GetEventInt(event, "userid"));
+    int client = GetClientOfUserId(GetEventInt(event, "userid"));
 
     if (IS_CLIENT(client))
     {
-        new maxEdicts = GetEntityCount();
-        for (new i = MaxClients + 1; i < maxEdicts; i++)
+        int maxEdicts = GetEntityCount();
+        for (int i = MaxClients + 1; i < maxEdicts; i++)
         {
             if (IsValidEdict(i) && GetEntPropEnt(i, Prop_Data, "m_hOwnerEntity") == client)
             {
@@ -539,7 +564,7 @@ public TF2_Event_Inventory(Handle:event, const String:name[], bool:dontBroadcast
     }
 }
 
-public L4D_Event_GhostSpawnTime(Handle:event, const String:name[], bool:dontBroadcast)
+public Action L4D_Event_GhostSpawnTime(Event event, const char[] name, bool dontBroadcast)
 {
     // There is no event for observer -> ghost mode, so we must count it down ourselves.
     CreateTimer(GetEventInt(event, "spawntime") + 0.5, Timer_PlayerStateChanged, GetEventInt(event, "userid"), TIMER_FLAG_NO_MAPCHANGE);
@@ -548,11 +573,13 @@ public L4D_Event_GhostSpawnTime(Handle:event, const String:name[], bool:dontBroa
 /**
  * OnGameFrame
  */
-public OnGameFrame()
+public void OnGameFrame()
 {
     if (!g_bEnabled)
+    {
         return;
-
+    }
+    
     g_iTickCount = GetGameTickCount();
 
     // Increment to next thread.
@@ -567,9 +594,9 @@ public OnGameFrame()
             g_iTotalThreads = g_iTraceCount / g_iMaxTraces + 1;
 
             // Assign each client to a thread.
-            new iThreadAssign = 1;
+            int iThreadAssign = 1;
 
-            for (new i = 1; i <= MaxClients; i++)
+            for (int i = 1; i <= MaxClients; i++)
             {
                 if (g_bProcess[i])
                 {
@@ -592,9 +619,9 @@ public OnGameFrame()
     }
 }
 
-public Action:Hook_SetTransmit(entity, client)
+public Action Hook_SetTransmit(int entity,int client)
 {
-    static iLastChecked[MAXPLAYERS+1][MAXPLAYERS+1];
+    static int iLastChecked[MAXPLAYERS+1][MAXPLAYERS+1];
 
     // Cache PVS for sound hook.
     g_iPVSSoundCache[entity][client] = g_iTickCount + g_iCacheTicks;
@@ -636,7 +663,7 @@ public Action:Hook_SetTransmit(entity, client)
     else if (!g_bIsFake[client] && g_bProcess[entity] && GetClientObserverMode(client) == OBS_MODE_IN_EYE)
     {
         // Observers in first-person will clone the visiblity of their target.
-        new iTarget = GetClientObserverTarget(client);
+        int iTarget = GetClientObserverTarget(client);
         
         if (IS_CLIENT(iTarget))
         {
@@ -655,30 +682,34 @@ public Action:Hook_SetTransmit(entity, client)
     return g_bIsVisible[entity][client] ? Plugin_Continue : Plugin_Handled;
 }
 
-public Action:Hook_SetTransmitWeapon(entity, client)
+public Action Hook_SetTransmitWeapon(int entity,int client)
 {
     return g_bIsVisible[g_iWeaponOwner[entity]][client] ? Plugin_Continue : Plugin_Handled;
 }
 
-public Action:OnPlayerRunCmd(client, &buttons, &impulse, Float:vel[3], Float:angles[3], &weapon, &subtype, &cmdnum, &tickcount, &seed, mouse[2])
+public Action OnPlayerRunCmd(int client, int& buttons, int& impulse, float vel[3], float angles[3], int& weapon, int& subtype, int& cmdnum, int& tickcount, int& seed, int mouse[2])
 {
     if (!g_bEnabled || !g_bProcess[client])
+    {
         return Plugin_Continue;
-
+    }
+    
     g_vEyeAngles[client] = angles;
     g_iCmdTickCount[client] = tickcount;
 
     return Plugin_Continue;
 }
 
-UpdateClientData(client)
+void UpdateClientData(int client)
 {
     /* Only update client data once per tick. */
-    static iLastCached[MAXPLAYERS+1];
+    static int iLastCached[MAXPLAYERS+1];
 
     if (iLastCached[client] == g_iTickCount)
+    {
         return;
-
+    }
+    
     iLastCached[client] = g_iTickCount;
 
     GetClientMins(client, g_vMins[client]);
@@ -692,13 +723,13 @@ UpdateClientData(client)
     g_vAbsCentre[client][2] += g_vMaxs[client][2];
 
     // Adjust vectors based on the clients velocity.
-    decl Float:vVelocity[3];
+    float vVelocity[3];
     GetClientAbsVelocity(client, vVelocity);
     
     if (!IsVectorZero(vVelocity))
     {
         // Lag compensation.
-        decl iTargetTick;
+        int iTargetTick;
 
         if (g_bIsFake[client])
         {
@@ -707,8 +738,8 @@ UpdateClientData(client)
         else
         {
             // Based on CLagCompensationManager::StartLagCompensation.
-            new Float:fCorrect = GetClientLatency(client, NetFlow_Outgoing);
-            new iLerpTicks = TIME_TO_TICK(GetEntPropFloat(client, Prop_Data, "m_fLerpTime"));
+            float fCorrect = GetClientLatency(client, NetFlow_Outgoing);
+            int iLerpTicks = TIME_TO_TICK(GetEntPropFloat(client, Prop_Data, "m_fLerpTime"));
 
             // Assume sv_maxunlag == 1.0f seconds.
             fCorrect += TICK_TO_TIME(iLerpTicks);
@@ -725,18 +756,18 @@ UpdateClientData(client)
         }
 
         // Use velocity before it's modified.
-        decl Float:vTemp[3];
+        float vTemp[3];
         vTemp[0] = FloatAbs(vVelocity[0]) * 0.01;
         vTemp[1] = FloatAbs(vVelocity[1]) * 0.01;
         vTemp[2] = FloatAbs(vVelocity[2]) * 0.01;
 
         // Calculate predicted positions for the next frame.
-        decl Float:vPredicted[3];
+        float vPredicted[3];
         ScaleVector(vVelocity, TICK_TO_TIME((g_iTickCount - iTargetTick) * g_iTotalThreads));
         AddVectors(g_vAbsCentre[client], vVelocity, vPredicted);
 
         // Make sure the predicted position is still inside the world.
-        TR_TraceHullFilter(vPredicted, vPredicted, Float:{-5.0, -5.0, -5.0}, Float:{5.0, 5.0, 5.0}, MASK_PLAYERSOLID_BRUSHONLY, Filter_WorldOnly);
+        TR_TraceHullFilter(vPredicted, vPredicted, view_as<float>({-5.0, -5.0, -5.0}), view_as<float>({5.0, 5.0, 5.0}), MASK_PLAYERSOLID_BRUSHONLY, Filter_WorldOnly);
         g_iTraceCount++;
 
         if (!TR_DidHit())
@@ -767,7 +798,7 @@ UpdateClientData(client)
 /**
  * Calculations
  */
-bool:IsAbleToSee(entity, client)
+bool IsAbleToSee(int entity,int client)
 {
     // Game specific checks.
     switch (g_Game)
@@ -775,18 +806,24 @@ bool:IsAbleToSee(entity, client)
         case Game_L4D2:
         {
             if (L4D_IsPlayerGhost(entity))
+            {
                 return false;
-
+            }
             if (L4D2_IsInfectedBusy(entity) || L4D2_IsSurvivorBusy(client))
+            {
                 return true;
+            }
         }
         case Game_L4D:
         {
             if (L4D_IsPlayerGhost(entity))
+            {
                 return false;
-
+            }
             if (L4D_IsInfectedBusy(entity) || L4D_IsSurvivorBusy(client))
+            {
                 return true;
+            }
         }
     }
 
@@ -795,27 +832,35 @@ bool:IsAbleToSee(entity, client)
     {
         // Check if centre is visible.
         if (IsPointVisible(g_vEyePos[client], g_vAbsCentre[entity]))
+        {
             return true;
-
+        }
+        
         // Check if weapon tip is visible.
         if (IsFwdVecVisible(g_vEyePos[client], g_vEyeAngles[entity], g_vEyePos[entity]))
+        {
             return true;
-
+        }
+        
         // Check outer 4 corners of player.
         if (IsRectangleVisible(g_vEyePos[client], g_vAbsCentre[entity], g_vMins[entity], g_vMaxs[entity], 1.30))
+        {
             return true;
-
+        }
+        
         // Check inner 4 corners of player.
         if (IsRectangleVisible(g_vEyePos[client], g_vAbsCentre[entity], g_vMins[entity], g_vMaxs[entity], 0.65))
+        {
             return true;
+        }
     }
     
     return false;
 }
 
-bool:IsInFieldOfView(const Float:start[3], const Float:angles[3], const Float:end[3])
+bool IsInFieldOfView(const float start[3], const float angles[3], const float end[3])
 {
-    decl Float:normal[3], Float:plane[3];
+    float normal[3], plane[3];
 
     GetAngleVectors(angles, normal, NULL_VECTOR, NULL_VECTOR);
     SubtractVectors(end, start, plane);
@@ -824,32 +869,36 @@ bool:IsInFieldOfView(const Float:start[3], const Float:angles[3], const Float:en
     return GetVectorDotProduct(plane, normal) > 0.0; // Cosine(Deg2Rad(179.9 / 2.0))
 }
 
-public bool:Filter_WorldOnly(entity, mask)
+public bool Filter_WorldOnly(int entity,int mask)
 {
     return false;
 }
 
-public bool:Filter_NoPlayers(entity, mask)
+public bool Filter_NoPlayers(int entity,int mask)
 {
     return entity > MaxClients && !IS_CLIENT(GetEntPropEnt(entity, Prop_Data, "m_hOwnerEntity"));
 }
 
-bool:IsPointVisible(const Float:start[3], const Float:end[3])
+bool IsPointVisible(const float start[3], const float end[3])
 {
     // TF2's team-specific barriers don't have a suitable workaround.
     if (g_Game == Game_TF2 || g_Game == Game_HIDDEN)
+    {
         TR_TraceRayFilter(start, end, MASK_VISIBLE, RayType_EndPoint, Filter_WorldOnly);
+    }
     else
+    {
         TR_TraceRayFilter(start, end, MASK_VISIBLE, RayType_EndPoint, Filter_NoPlayers);
-
+    }
+    
     g_iTraceCount++;
 
     return TR_GetFraction() == 1.0;
 }
 
-bool:IsFwdVecVisible(const Float:start[3], const Float:angles[3], const Float:end[3])
+bool IsFwdVecVisible(const float start[3], const float angles[3], const float end[3])
 {
-    decl Float:fwd[3];
+    float fwd[3];
 
     GetAngleVectors(angles, fwd, NULL_VECTOR, NULL_VECTOR);
     ScaleVector(fwd, 50.0);
@@ -858,11 +907,11 @@ bool:IsFwdVecVisible(const Float:start[3], const Float:angles[3], const Float:en
     return IsPointVisible(start, fwd);
 }
 
-bool:IsRectangleVisible(const Float:start[3], const Float:end[3], const Float:mins[3], const Float:maxs[3], Float:scale=1.0)
+bool IsRectangleVisible(const float start[3], const float end[3], const float mins[3], const float maxs[3], float scale=1.0)
 {
-    new Float:ZpozOffset = maxs[2];
-    new Float:ZnegOffset = mins[2];
-    new Float:WideOffset = ((maxs[0] - mins[0]) + (maxs[1] - mins[1])) / 4.0;
+    float ZpozOffset = maxs[2];
+    float ZnegOffset = mins[2];
+    float WideOffset = ((maxs[0] - mins[0]) + (maxs[1] - mins[1])) / 4.0;
 
     // This rectangle is just a point!
     if (ZpozOffset == 0.0 && ZnegOffset == 0.0 && WideOffset == 0.0)
@@ -876,7 +925,7 @@ bool:IsRectangleVisible(const Float:start[3], const Float:end[3], const Float:mi
     WideOffset *= scale;
 
     // Prepare rotation matrix.
-    decl Float:angles[3], Float:fwd[3], Float:right[3];
+    float angles[3], fwd[3], right[3];
 
     SubtractVectors(start, end, fwd);
     NormalizeVector(fwd, fwd);
@@ -884,7 +933,7 @@ bool:IsRectangleVisible(const Float:start[3], const Float:end[3], const Float:mi
     GetVectorAngles(fwd, angles);
     GetAngleVectors(angles, fwd, right, NULL_VECTOR);
 
-    decl Float:vRectangle[4][3], Float:vTemp[3];
+    float vRectangle[4][3], vTemp[3];
 
     // If the player is on the same level as us, we can optimize by only rotating on the z-axis.
     if (FloatAbs(fwd[2]) <= 0.7071)
@@ -972,7 +1021,7 @@ bool:IsRectangleVisible(const Float:start[3], const Float:end[3], const Float:mi
     }
 
     // Run traces on all corners.
-    for (new i = 0; i < 4; i++)
+    for (int i = 0; i < 4; i++)
     {
         if (IsPointVisible(start, vRectangle[i]))
         {
@@ -986,30 +1035,32 @@ bool:IsRectangleVisible(const Float:start[3], const Float:end[3], const Float:mi
 /**
  * CS:S FarESP Blocking
  */
-#define CS_TEAM_NONE		0	/**< No team yet. */
-#define CS_TEAM_SPECTATOR	1	/**< Spectators. */
-#define CS_TEAM_T			2	/**< Terrorists. */
-#define CS_TEAM_CT			3	/**< Counter-Terrorists. */
+#define CS_TEAM_NONE        0	/**< No team yet. */
+#define CS_TEAM_SPECTATOR   1	/**< Spectators. */
+#define CS_TEAM_T           2	/**< Terrorists. */
+#define CS_TEAM_CT          3	/**< Counter-Terrorists. */
 
-#define MAX_RADAR_CLIENTS	36	// Max amount of client data we can include in one message.
+#define MAX_RADAR_CLIENTS   36	// Max amount of client data we can include in one message.
 
-new UserMsg:g_msgUpdateRadar = INVALID_MESSAGE_ID;
-new bool:g_bPlayerSpotted[MAXPLAYERS+1];
+UserMsg g_msgUpdateRadar = INVALID_MESSAGE_ID;
+bool g_bPlayerSpotted[MAXPLAYERS+1];
 
-new g_iSpottedCache[MAXPLAYERS+1];
-new g_iUpdateFrequency;
+int g_iSpottedCache[MAXPLAYERS+1];
+int g_iUpdateFrequency;
 
-new g_iPlayerManager = -1;
-new g_iPlayerSpotted = -1;
+int g_iPlayerManager = -1;
+int g_iPlayerSpotted = -1;
 
-new Handle:g_hCvarForceCamera = INVALID_HANDLE;
-new bool:g_bForceCamera;
+ConVar g_hCvarForceCamera;
+bool g_bForceCamera;
 
-FarESP_Enable()
+void FarESP_Enable()
 {
     if ((g_iPlayerManager = GetPlayerResourceEntity()) == -1)
+    {
         return;
-
+    }
+    
     g_iPlayerSpotted = FindSendPropInfo("CCSPlayerResource", "m_bPlayerSpotted"); //FindSendPropOffs("CCSPlayerResource", "m_bPlayerSpotted");
     SDKHook(g_iPlayerManager, SDKHook_ThinkPost, PlayerManager_ThinkPost);
 
@@ -1020,34 +1071,35 @@ FarESP_Enable()
 
     g_hCvarForceCamera = FindConVar("mp_forcecamera");
     OnForceCameraChanged(g_hCvarForceCamera, "", "");
-    HookConVarChange(g_hCvarForceCamera, OnForceCameraChanged);
+    //HookConVarChange(g_hCvarForceCamera, OnForceCameraChanged);
+    g_hCvarForceCamera.AddChangeHook(OnForceCameraChanged);
 
     g_iUpdateFrequency = TIME_TO_TICK(2.0);
 
     g_bFarEspEnabled = true;
 }
 
-FarESP_Disable()
+void FarESP_Disable()
 {
     SDKUnhook(g_iPlayerManager, SDKHook_ThinkPost, PlayerManager_ThinkPost);
 
-    for (new i = 0; i < sizeof(g_bPlayerSpotted); i++)
+    for (int i = 0; i < sizeof(g_bPlayerSpotted); i++)
     {
         g_bPlayerSpotted[i] = false;
     }
 
     UnhookUserMessage(g_msgUpdateRadar, Hook_UpdateRadar, true);
-
     UnhookEvent("player_death", FarESP_PlayerDeath, EventHookMode_Pre);
 
-    UnhookConVarChange(g_hCvarForceCamera, OnForceCameraChanged);
-
+    //UnhookConVarChange(g_hCvarForceCamera, OnForceCameraChanged);
+    g_hCvarForceCamera.RemoveChangeHook(OnForceCameraChanged);
+    
     g_bFarEspEnabled = false;
 }
 
-public Action:FarESP_PlayerDeath(Handle:event, const String:name[], bool:dontBroadcast)
+public Action FarESP_PlayerDeath(Event event, const char[] name, bool dontBroadcast)
 {
-    new client = GetClientOfUserId(GetEventInt(event, "userid"));
+    int client = GetClientOfUserId(event.GetInt("userid"));
 
     if (IS_CLIENT(client) && IsClientInGame(client))
     {
@@ -1057,12 +1109,12 @@ public Action:FarESP_PlayerDeath(Handle:event, const String:name[], bool:dontBro
     return Plugin_Continue;
 }
 
-public OnForceCameraChanged(Handle:convar, const String:oldValue[], const String:newValue[])
+public void OnForceCameraChanged(ConVar convar, char[] oldValue, char[] newValue)
 {
-    g_bForceCamera = (GetConVarInt(convar) == 1);
+    g_bForceCamera = (convar.BoolValue);
 }
 
-public OnMapStart()
+public void OnMapStart()
 {
     if (g_bEnabled && !g_bFarEspEnabled && g_Game == Game_CSS)
     {
@@ -1070,7 +1122,7 @@ public OnMapStart()
     }
 }
 
-public OnMapEnd()
+public void OnMapEnd()
 {
     if (g_bFarEspEnabled)
     {
@@ -1078,19 +1130,21 @@ public OnMapEnd()
     }
 }
 
-public Action:Hook_UpdateRadar(UserMsg:msg_id, Handle:bf, const players[], playersNum, bool:reliable, bool:init)
+public Action Hook_UpdateRadar(UserMsg msg_id, BfRead msg, const int[] players, int playersNum, bool reliable, bool init)
 {
     // We will send custom messages only.
     return Plugin_Handled;
 }
 
-public PlayerManager_ThinkPost(entity)
+public void PlayerManager_ThinkPost(int entity)
 {
     if (!g_bFarEspEnabled)
+    {
         return;
-
+    }
+    
     // Keep track of which players have been spotted.
-    for (new i = 1; i <= MaxClients; i++)
+    for (int i = 1; i <= MaxClients; i++)
     {
         if (g_bProcess[i] && GetEntData(entity, g_iPlayerSpotted + i, 1))
         {
@@ -1110,7 +1164,7 @@ public PlayerManager_ThinkPost(entity)
     }
 }
 
-FarESP_OnGameFrame()
+void FarESP_OnGameFrame()
 {
     // Send the messages once per second and on different ticks.
     switch (g_iTickCount % g_iTickRate)
@@ -1142,13 +1196,13 @@ FarESP_OnGameFrame()
     }
 }
 
-SendRadarSpotted()
+void SendRadarSpotted()
 {
     // Send scrambled spotted data to all clients.
-    decl iClients[MaxClients];
-    new numClients, count;
+    int[] iClients = new int[MaxClients];
+    int numClients, count;
 
-    for (new i = 1; i <= MaxClients; i++)
+    for (int i = 1; i <= MaxClients; i++)
     {
         if (g_bProcess[i])
         {
@@ -1157,12 +1211,14 @@ SendRadarSpotted()
     }
 
     if (!numClients)
+    {
         return;
+    }
+    
+    float vOrigin[3], vAngles[3];
+    Handle bf = StartMessageEx(g_msgUpdateRadar, iClients, numClients, USERMSG_BLOCKHOOKS);
 
-    decl Float:vOrigin[3], Float:vAngles[3];
-    new Handle:bf = StartMessageEx(g_msgUpdateRadar, iClients, numClients, USERMSG_BLOCKHOOKS);
-
-    for (new i = 1; i <= MaxClients && count < MAX_RADAR_CLIENTS; i++)
+    for (int i = 1; i <= MaxClients && count < MAX_RADAR_CLIENTS; i++)
     {
         if (g_bPlayerSpotted[i] && g_bProcess[i])
         {
@@ -1182,13 +1238,13 @@ SendRadarSpotted()
     EndMessage();
 }
 
-SendRadarTeam(team)
+void SendRadarTeam(int team)
 {
     // Send proper team data to all teammates.
-    decl iClients[MaxClients];
-    new numClients;
+    int[] iClients = new int[view_as<int>(MaxClients)];
+    int numClients;
 
-    for (new i = 1; i <= MaxClients; i++)
+    for (int i = 1; i <= MaxClients; i++)
     {
         // Include dead players observering their teammates.
         if ((g_bProcess[i] || (g_bForceCamera && g_bIsObserver[i])) && g_iTeam[i] == team)
@@ -1198,22 +1254,27 @@ SendRadarTeam(team)
     }
 
     if (!numClients)
+    {
         return;
-
-    decl Float:vOrigin[3], Float:vAngles[3], client;
-    new Handle:bf = StartMessageEx(g_msgUpdateRadar, iClients, numClients, USERMSG_BLOCKHOOKS);
+    }
+    
+    float vOrigin[3], vAngles[3];
+    int client;
+    Handle bf = StartMessageEx(g_msgUpdateRadar, iClients, numClients, USERMSG_BLOCKHOOKS);
 
     // Limit payload early.
     if (numClients >= MAX_RADAR_CLIENTS)
+    {
         numClients = MAX_RADAR_CLIENTS - 1;
-
-    for (new i = 0; i < numClients; i++)
+    }
+    
+    for (int i = 0; i < numClients; i++)
     {
         client = iClients[i];
 
         GetClientAbsOrigin(client, vOrigin);
         GetClientAbsAngles(client, vAngles);
-
+        
         BfWriteByte(bf, client);
         BfWriteSBitLong(bf, RoundToNearest(vOrigin[0] / 4.0), 13);
         BfWriteSBitLong(bf, RoundToNearest(vOrigin[1] / 4.0), 13);
@@ -1225,13 +1286,14 @@ SendRadarTeam(team)
     EndMessage();
 }
 
-SendRadarFakeTeam(team)
+void SendRadarFakeTeam(int team)
 {
     // Send fake data to team.
-    decl iReceivers[MaxClients], iSenders[MaxClients];
-    new numReceivers, numSenders, iReceiver;
+    int[] iReceivers = new int[view_as<int>(MaxClients)];
+    int[] iSenders = new int[view_as<int>(MaxClients)];
+    int numReceivers, numSenders, iReceiver;
 
-    for (new i = 1; i <= MaxClients; i++)
+    for (int i = 1; i <= MaxClients; i++)
     {
         if (g_bProcess[i])
         {
@@ -1247,10 +1309,12 @@ SendRadarFakeTeam(team)
     }
 
     if (!numReceivers || !numSenders)
+    {
         return;
-	
-    decl Float:vOrigin[3];
-    new Handle:bf = StartMessageEx(g_msgUpdateRadar, iReceivers, numReceivers, USERMSG_BLOCKHOOKS);
+    }
+    
+    float vOrigin[3];
+    Handle bf = StartMessageEx(g_msgUpdateRadar, iReceivers, numReceivers, USERMSG_BLOCKHOOKS);
 
     // Randomize so that every client is ensured fake data.
     SortIntegers(iReceivers, numReceivers, Sort_Random);
@@ -1262,7 +1326,7 @@ SendRadarFakeTeam(team)
         numSenders = MAX_RADAR_CLIENTS - 1;
     }
 
-    for (new i = 0; i < numSenders; i++)
+    for (int i = 0; i < numSenders; i++)
     {
         GetClientAbsOrigin(iReceivers[iReceiver++], vOrigin);
 
@@ -1273,20 +1337,22 @@ SendRadarFakeTeam(team)
         BfWriteSBitLong(bf, RoundToNearest(MT_GetRandomFloat(-180.0, 180.0)), 9);
 
         if (iReceiver >= numReceivers)
+        {
             iReceiver = 0;
+        }
     }
- 
+
     BfWriteByte(bf, 0);
     EndMessage();
 }
 
-SendRadarClient(client, flags)
+void SendRadarClient(int client,int flags)
 {
     // A player was spotted and needs to be sent out to all clients.
-    decl iClients[MaxClients];
-    new numClients, iTeam = g_iTeam[client];
+    int[] iClients = new int[view_as<int>(MaxClients)];
+    int numClients, iTeam = g_iTeam[client];
 
-    for (new i = 1; i <= MaxClients; i++)
+    for (int i = 1; i <= MaxClients; i++)
     {
         if (g_bProcess[i] && g_iTeam[i] != iTeam)
         {
@@ -1295,10 +1361,12 @@ SendRadarClient(client, flags)
     }
     
     if (!numClients)
+    {
         return;
-
-    decl Float:vOrigin[3], Float:vAngles[3];
-    new Handle:bf = StartMessageEx(g_msgUpdateRadar, iClients, numClients, flags);
+    }
+    
+    float vOrigin[3], vAngles[3];
+    Handle bf = StartMessageEx(g_msgUpdateRadar, iClients, numClients, flags);
 
     GetClientAbsOrigin(client, vOrigin);
     GetClientAbsAngles(client, vAngles);
@@ -1313,13 +1381,13 @@ SendRadarClient(client, flags)
     EndMessage();
 }
 
-SendRadarObservers()
+void SendRadarObservers()
 {
     // Send all player data to all observers.
-    decl iClients[MaxClients];
-    new numClients, count;
+    int[] iClients = new int[MaxClients];
+    int numClients, count;
 
-    for (new i = 1; i <= MaxClients; i++)
+    for (int i = 1; i <= MaxClients; i++)
     {
         // Include teammate-observers if forcecamera is disabled.
         if (g_bIsObserver[i] && (!g_bForceCamera || g_iTeam[i] <= CS_TEAM_SPECTATOR))
@@ -1329,12 +1397,14 @@ SendRadarObservers()
     }
 
     if (!numClients)
+    {
         return;
+    }
 
-    decl Float:vOrigin[3], Float:vAngles[3];
-    new Handle:bf = StartMessageEx(g_msgUpdateRadar, iClients, numClients, USERMSG_BLOCKHOOKS);
+    float vOrigin[3], vAngles[3];
+    Handle bf = StartMessageEx(g_msgUpdateRadar, iClients, numClients, USERMSG_BLOCKHOOKS);
 
-    for (new i = 1; i <= MaxClients && count < MAX_RADAR_CLIENTS; i++)
+    for (int i = 1; i <= MaxClients && count < MAX_RADAR_CLIENTS; i++)
     {
         if (g_bProcess[i])
         {
